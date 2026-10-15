@@ -98,13 +98,14 @@
     var defaultChannels = ['askreddit', 'technology', 'worldnews', 'funny', 'todayilearned', 'python'];
     var currentChannel = 'askreddit';
     var feedCount = 10;
+    var cachedFeedItems = [];
 
     function getAvatar(username) {
       return 'https://api.dicebear.com/7.x/identicon/svg?seed=' + encodeURIComponent(username);
     }
 
     async function fetchResilientRSS(rssUrl) {
-      const targetApi = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(rssUrl)}&count=50`;
+      const targetApi = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(rssUrl)}`;
       const endpoints = [
         targetApi,
         `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetApi)}`,
@@ -142,6 +143,7 @@
       currentChannel = channelName.replace(/^r\//, '').replace(/^#/, '').toLowerCase();
       document.getElementById('channel-title').innerText = currentChannel;
       feedCount = 10;
+      cachedFeedItems = [];
       renderChannels();
       closeThread();
       loadCurrentChannel();
@@ -149,39 +151,42 @@
 
     async function loadCurrentChannel() {
       var container = document.getElementById('messages-container');
-      container.innerHTML = `<div style="color: #9CA3AF; text-align: center; padding: 40px; font-size: 12px;">Syncing #${currentChannel}...</div>`;
-
-      try {
-        const data = await fetchResilientRSS(`https://www.reddit.com/r/${currentChannel}/.rss`);
-        container.innerHTML = '';
-
-        const postsToShow = data.items.slice(0, feedCount);
-
-        postsToShow.forEach(function(p) {
-          var author = p.author || 'reddit_user';
-          var pubDate = new Date(p.pubDate).getTime() / 1000;
-          
-          container.innerHTML += `
-            <div class="msg-card">
-              <img src="${getAvatar(author)}" class="msg-avatar">
-              <div style="flex: 1; min-width: 0;">
-                <div>
-                  <span class="msg-author">${escapeHTML(author)}</span>
-                  <span class="msg-time">${formatTime(pubDate)}</span>
-                </div>
-                <div class="msg-title">${decodeHTML(p.title)}</div>
-                <button onclick="openThread('${p.link}')" class="thread-btn">💬 Read Comments</button>
-              </div>
-            </div>
-          `;
-        });
-
-        if (data.items.length > feedCount) {
-          container.innerHTML += `<button onclick="loadMoreBread()" class="load-more-feed-btn">➕ Load More Posts</button>`;
+      
+      if (cachedFeedItems.length === 0) {
+        container.innerHTML = `<div style="color: #9CA3AF; text-align: center; padding: 40px; font-size: 12px;">Syncing #${currentChannel}...</div>`;
+        try {
+          const data = await fetchResilientRSS(`https://www.reddit.com/r/${currentChannel}/.rss`);
+          cachedFeedItems = data.items || [];
+        } catch (err) {
+          container.innerHTML = `<div style="color: #EF4444; padding: 20px; font-size: 12px;">Failed to load feed. Click Refresh.</div>`;
+          return;
         }
+      }
 
-      } catch (err) {
-        container.innerHTML = `<div style="color: #EF4444; padding: 20px; font-size: 12px;">Failed to load feed. Click Refresh.</div>`;
+      container.innerHTML = '';
+      const postsToShow = cachedFeedItems.slice(0, feedCount);
+
+      postsToShow.forEach(function(p) {
+        var author = p.author || 'reddit_user';
+        var pubDate = new Date(p.pubDate).getTime() / 1000;
+        
+        container.innerHTML += `
+          <div class="msg-card">
+            <img src="${getAvatar(author)}" class="msg-avatar">
+            <div style="flex: 1; min-width: 0;">
+              <div>
+                <span class="msg-author">${escapeHTML(author)}</span>
+                <span class="msg-time">${formatTime(pubDate)}</span>
+              </div>
+              <div class="msg-title">${decodeHTML(p.title)}</div>
+              <button onclick="openThread('${p.link}')" class="thread-btn">💬 Read Comments</button>
+            </div>
+          </div>
+        `;
+      });
+
+      if (cachedFeedItems.length > feedCount) {
+        container.innerHTML += `<button onclick="loadMoreBread()" class="load-more-feed-btn">➕ Load More Posts</button>`;
       }
     }
 
