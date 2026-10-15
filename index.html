@@ -45,7 +45,6 @@
     .thread-header { height: 44px; border-bottom: 1px solid #2D3748; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; color: white; font-weight: 700; font-size: 13px; flex-shrink: 0; }
     .thread-body { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
     
-    /* Comment and Nested Tree Styles */
     .comment-card { display: flex; gap: 10px; font-size: 12px; padding: 4px 0; }
     .comment-card.nested { margin-left: 18px; border-left: 2px solid #374151; padding-left: 10px; }
     .comment-avatar { width: 26px; height: 26px; border-radius: 4px; background: #2D3748; flex-shrink: 0; }
@@ -120,8 +119,8 @@
       const targetApi = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(rssUrl)}`;
       const endpoints = [
         targetApi,
-        `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetApi)}`,
-        `https://api.allorigins.win/get?url=${encodeURIComponent(targetApi)}`
+        `https://api.allorigins.win/get?url=${encodeURIComponent(targetApi)}`,
+        `https://corsproxy.io/?${encodeURIComponent(targetApi)}`
       ];
 
       for (let url of endpoints) {
@@ -163,152 +162,4 @@
 
     async function loadCurrentChannel() {
       var container = document.getElementById('messages-container');
-      container.innerHTML = `<div style="color: #9CA3AF; text-align: center; padding: 40px; font-size: 12px;">Syncing #${currentChannel}...</div>`;
-      await fetchMorePosts(true);
-    }
-
-    async function fetchMorePosts(isInitial) {
-      var container = document.getElementById('messages-container');
-      var existingBtn = document.getElementById('load-more-posts-btn');
-
-      if (existingBtn) {
-        existingBtn.innerText = 'Loading more posts...';
-        existingBtn.disabled = true;
-      }
-
-      try {
-        let feedUrl = `https://www.reddit.com/r/${currentChannel}/.rss`;
-        if (lastPostId) feedUrl += `?after=${lastPostId}`;
-
-        const data = await fetchResilientRSS(feedUrl);
-        if (existingBtn) existingBtn.remove();
-        if (isInitial) container.innerHTML = '';
-
-        const posts = data.items || [];
-
-        posts.forEach(function(p) {
-          var author = p.author || 'reddit_user';
-          var pubDate = new Date(p.pubDate).getTime() / 1000;
-          
-          container.innerHTML += `
-            <div class="msg-card">
-              <img src="${getAvatar(author)}" class="msg-avatar">
-              <div style="flex: 1; min-width: 0;">
-                <div>
-                  <span class="msg-author">${escapeHTML(author)}</span>
-                  <span class="msg-time">${formatTime(pubDate)}</span>
-                </div>
-                <div class="msg-title">${decodeHTML(p.title)}</div>
-                <button onclick="openThread('${p.link}')" class="thread-btn">💬 Read Comments</button>
-              </div>
-            </div>
-          `;
-        });
-
-        if (posts.length > 0) {
-          for (let i = posts.length - 1; i >= 0; i--) {
-            let link = posts[i].link || '';
-            let parts = link.split('/comments/');
-            if (parts.length > 1) {
-              let idPart = parts[1].split('/')[0];
-              if (idPart) {
-                lastPostId = 't3_' + idPart;
-                break;
-              }
-            }
-          }
-        }
-
-        container.innerHTML += `<button id="load-more-posts-btn" onclick="fetchMorePosts(false)" class="load-more-feed-btn">➕ Load More Posts</button>`;
-        
-      } catch (err) {
-        if (isInitial) {
-          container.innerHTML = `<div style="color: #EF4444; padding: 20px; font-size: 12px;">Failed to load feed. Click Refresh.</div>`;
-        } else if (existingBtn) {
-          existingBtn.innerText = '⚠️ Failed to fetch. Click to retry.';
-          existingBtn.disabled = false;
-        }
-      }
-    }
-
-    async function openThread(link) {
-      var sidebar = document.getElementById('thread-sidebar');
-      var body = document.getElementById('thread-body');
-      const cleanLink = link.split('?')[0].replace(/\/$/, '');
-      
-      sidebar.classList.remove('hidden');
-      body.innerHTML = `<div style="color: #9CA3AF; text-align: center; padding: 20px; font-size: 12px;">Loading discussion...</div>`;
-
-      try {
-        const data = await fetchResilientRSS(`${cleanLink}/.rss`);
-        body.innerHTML = '';
-
-        const items = data.items.slice(1);
-        if (items.length === 0) {
-          body.innerHTML = `<div style="color: #9CA3AF; padding: 12px; font-size: 12px;">No comments available.</div>`;
-          return;
-        }
-
-        items.forEach(function(c) {
-          var author = c.author || 'commenter';
-          var pubDate = new Date(c.pubDate).getTime() / 1000;
-          var htmlContent = c.content || '';
-
-          // Extract quoted parent context if present
-          var quoteText = '';
-          var quoteMatch = htmlContent.match(/<blockquote>([\s\S]*?)<\/blockquote>/i);
-          if (quoteMatch && quoteMatch[1]) {
-            quoteText = quoteMatch[1].replace(/<[^>]*>?/gm, '').trim();
-          }
-
-          // Clean main comment text
-          var cleanText = htmlContent.replace(/<blockquote>[\s\S]*?<\/blockquote>/gi, '').replace(/<[^>]*>?/gm, '').trim();
-
-          // Apply nested class if this comment contains a quote/reply context
-          var isNested = quoteText.length > 0;
-          var nestedClass = isNested ? 'nested' : '';
-
-          body.innerHTML += `
-            <div class="comment-card ${nestedClass}">
-              <img src="${getAvatar(author)}" class="comment-avatar">
-              <div style="flex: 1; min-width: 0;">
-                <div>
-                  <span class="comment-author">${escapeHTML(author)}</span>
-                  <span style="font-size: 10px; color: #6B7280; margin-left: 6px;">${formatTime(pubDate)}</span>
-                </div>
-                ${quoteText ? `<div class="comment-quote">💬 "${decodeHTML(quoteText.slice(0, 120))}"</div>` : ''}
-                <div class="comment-text">${decodeHTML(cleanText)}</div>
-              </div>
-            </div>
-          `;
-        });
-      } catch (e) {
-        body.innerHTML = `<div style="color: #EF4444; font-size: 12px;">Failed to load thread. Click again to retry.</div>`;
-      }
-    }
-
-    function closeThread() { document.getElementById('thread-sidebar').classList.add('hidden'); }
-    function togglePanic() { document.getElementById('panic-overlay').classList.toggle('active'); }
-
-    function formatTime(utcSeconds) {
-      if (!utcSeconds) return 'just now';
-      var diff = Math.floor((Date.now() / 1000) - utcSeconds);
-      if (diff < 3600) return Math.floor(diff/60) + 'm ago';
-      if (diff < 86400) return Math.floor(diff/3600) + 'h ago';
-      return Math.floor(diff/86400) + 'd ago';
-    }
-
-    function escapeHTML(str) {
-      return (str || '').replace(/[&<>'"]/g, tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag));
-    }
-
-    function decodeHTML(html) {
-      var txt = document.createElement('textarea');
-      txt.innerHTML = html || '';
-      return txt.value;
-    }
-
-    window.onload = init;
-  </script>
-</body>
-</html>
+      container.innerHTML = `<div style="color: #9CA3AF; text
