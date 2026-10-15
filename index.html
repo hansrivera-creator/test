@@ -85,13 +85,12 @@
     let defaultChannels = ['askreddit', 'technology', 'worldnews', 'funny', 'todayilearned', 'python'];
     let currentChannel = 'askreddit';
 
-    async function fetchRedditData(subreddit) {
-      // Fetching via public RSS2JSON API bypassing Reddit's JSON rate-limiting buckets entirely
-      const targetUrl = `https://www.reddit.com/r/${subreddit}/.rss`;
-      const proxyUrl = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(targetUrl)}`;
+    async function fetchRedditData(redditPath) {
+      const targetUrl = `https://www.reddit.com${redditPath}`;
+      const proxyUrl = `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`;
       
       const res = await fetch(proxyUrl);
-      if (!res.ok) throw new Error("RSS Proxy request failed");
+      if (!res.ok) throw new Error("Proxy request failed");
       
       return await res.json();
     }
@@ -130,33 +129,33 @@
       container.innerHTML = `<div style="color: #9CA3AF; text-align: center; padding: 40px;">Syncing #${currentChannel}...</div>`;
 
       try {
-        const data = await fetchRedditData(currentChannel);
+        const json = await fetchRedditData(`/r/${currentChannel}/hot.json?limit=25`);
         
-        if (!data.items || data.items.length === 0) {
-          throw new Error("No items returned");
+        if (!json || !json.data || !json.data.children) {
+          throw new Error("Invalid payload structure");
         }
 
+        const posts = json.data.children.map(c => c.data);
+
         container.innerHTML = '';
-        data.items.forEach(p => {
-          const author = p.author || 'reddit_user';
-          const pubDate = new Date(p.pubDate).getTime() / 1000;
-          
+        posts.forEach(p => {
           container.innerHTML += `
             <div class="msg-card">
-              <img src="https://api.dicebear.com/7.x/identicon/svg?seed=${author}" class="msg-avatar">
+              <img src="https://api.dicebear.com/7.x/identicon/svg?seed=${p.author}" class="msg-avatar">
               <div style="flex: 1;">
                 <div>
-                  <span class="msg-author">${escapeHTML(author)}</span>
-                  <span class="msg-time">${formatTime(pubDate)}</span>
+                  <span class="msg-author">${p.author}</span>
+                  <span class="msg-time">${formatTime(p.created_utc)}</span>
                 </div>
                 <div class="msg-title">${escapeHTML(p.title)}</div>
+                ${p.selftext ? `<div class="msg-body">${escapeHTML(p.selftext)}</div>` : ''}
               </div>
             </div>
           `;
         });
 
       } catch (err) {
-        container.innerHTML = `<div style="color: #EF4444; padding: 20px;">Failed to fetch feed via RSS. Click Refresh to try again.</div>`;
+        container.innerHTML = `<div style="color: #EF4444; padding: 20px;">Failed to fetch feed. Click Refresh to try again.</div>`;
       }
     }
 
@@ -165,9 +164,8 @@
     }
 
     function formatTime(utcSeconds) {
-      if (!utcSeconds || isNaN(utcSeconds)) return 'just now';
+      if (!utcSeconds) return 'just now';
       const diff = Math.floor((Date.now() / 1000) - utcSeconds);
-      if (diff < 60) return 'just now';
       if (diff < 3600) return `${Math.floor(diff/60)}m ago`;
       if (diff < 86400) return `${Math.floor(diff/3600)}h ago`;
       return `${Math.floor(diff/86400)}d ago`;
