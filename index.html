@@ -7,7 +7,6 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
-    /* Break out of Shopify theme containers & remove gray bottom bar */
     html, body {
       margin: 0 !important;
       padding: 0 !important;
@@ -16,13 +15,6 @@
       overflow: hidden !important;
       background-color: #1A1D21 !important;
     }
-    .page-width, main, #MainContent, .main-content {
-      max-width: 100% !important;
-      padding: 0 !important;
-      margin: 0 !important;
-      background-color: #1A1D21 !important;
-    }
-
     :root {
       --slack-sidebar: #3F0E40;
       --slack-sidebar-hover: #350D36;
@@ -167,7 +159,6 @@
     let currentChannel = 'askreddit';
     let savedChannels = JSON.parse(localStorage.getItem('slackit_channels')) || defaultChannels;
 
-    // CSP-Bypassing JSONP Engine
     function fetchRedditViaJSONP(redditPath) {
       return new Promise((resolve, reject) => {
         const callbackName = 'jsonp_cb_' + Math.random().toString(36).substring(2);
@@ -246,13 +237,9 @@
 
       try {
         const json = await fetchRedditViaJSONP(`/r/${currentChannel}/hot.json?limit=25`);
-        
-        if (json.error) {
-          throw new Error(json.error);
-        }
+        if (json.error) throw new Error(json.error);
 
         const posts = json.data.children.map(c => c.data);
-
         container.innerHTML = '';
         posts.forEach(p => {
           container.innerHTML += renderSlackMessage(p);
@@ -262,7 +249,7 @@
         container.innerHTML = `
           <div class="bg-red-900/30 border border-red-700/50 p-4 rounded text-red-200 text-xs space-y-1">
             <div class="font-bold"><i class="fa-solid fa-triangle-exclamation"></i> Sync Error</div>
-            <div>Shopify CSP blocked outbound fetch. Refresh page or switch channels.</div>
+            <div>Failed to fetch channel feed. Click refresh or try another channel.</div>
           </div>
         `;
       }
@@ -351,14 +338,8 @@
       }
     }
 
-    function closeThread() {
-      document.getElementById('thread-sidebar').classList.add('hidden');
-    }
-
-    function togglePanic() {
-      document.getElementById('panic-overlay').classList.toggle('hidden');
-    }
-
+    function closeThread() { document.getElementById('thread-sidebar').classList.add('hidden'); }
+    function togglePanic() { document.getElementById('panic-overlay').classList.toggle('hidden'); }
     function openAddModal() { document.getElementById('add-modal').classList.remove('hidden'); }
     function closeAddModal() { document.getElementById('add-modal').classList.add('hidden'); }
 
