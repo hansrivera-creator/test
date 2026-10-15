@@ -20,8 +20,8 @@
     .channel-item:hover { background: #350D36; color: white; }
     .channel-item.active { background: #1164A3; color: white; font-weight: 600; }
     
-    .chat-area { flex: 1; display: flex; flex-direction: column; background: #1A1D21; min-width: 0; }
-    .chat-header { height: 44px; border-bottom: 1px solid #2D3748; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; color: white; }
+    .chat-area { flex: 1; display: flex; flex-direction: column; background: #1A1D21; min-width: 0; height: 100%; }
+    .chat-header { height: 44px; border-bottom: 1px solid #2D3748; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; color: white; flex-shrink: 0; }
     .chat-title { font-weight: 700; font-size: 15px; }
     .refresh-btn { background: #222529; border: 1px solid #374151; color: #D1D5DB; padding: 4px 10px; border-radius: 4px; font-size: 11px; cursor: pointer; }
     
@@ -34,7 +34,7 @@
     .msg-title { font-size: 13px; color: #E5E7EB; margin-top: 2px; line-height: 1.45; word-break: break-word; }
     
     .thread-btn { margin-top: 6px; background: none; border: none; color: #60A5FA; font-size: 11px; font-weight: 500; cursor: pointer; }
-    .load-more-feed-btn { width: 100%; background: #222529; border: 1px solid #374151; color: #60A5FA; padding: 10px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; margin-top: 10px; text-align: center; }
+    .load-more-feed-btn { width: 100%; background: #222529; border: 1px solid #374151; color: #60A5FA; padding: 10px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; margin: 12px 0 24px 0; text-align: center; }
     .load-more-feed-btn:hover { background: #2D3748; color: white; }
 
     .thread-sidebar { width: 420px; background: #1A1D21; border-left: 1px solid #2D3748; display: flex; flex-direction: column; flex-shrink: 0; }
@@ -46,6 +46,9 @@
     .comment-author { font-weight: 700; color: #E5E7EB; }
     .comment-text { color: #9CA3AF; margin-top: 3px; line-height: 1.4; word-break: break-word; }
     .close-btn { background: none; border: none; color: #9CA3AF; font-size: 14px; cursor: pointer; }
+
+    .input-wrapper { padding: 12px 20px; border-top: 1px solid #2D3748; background: #1A1D21; flex-shrink: 0; }
+    .message-input { width: 100%; background: #222529; border: 1px solid #374151; border-radius: 6px; padding: 8px 12px; color: white; font-size: 12px; outline: none; }
 
     #panic-overlay { position: fixed; inset: 0; background: #1A1D21; z-index: 9999; padding: 32px; display: none; }
     #panic-overlay.active { display: block; }
@@ -73,7 +76,12 @@
         <div class="chat-title"># <span id="channel-title">askreddit</span></div>
         <button onclick="loadCurrentChannel()" class="refresh-btn">🔄 Refresh</button>
       </div>
+      
       <div id="messages-container" class="messages-container"></div>
+
+      <div class="input-wrapper">
+        <input id="dummy-input" type="text" placeholder="Message #askreddit" class="message-input">
+      </div>
     </div>
 
     <div id="thread-sidebar" class="thread-sidebar hidden">
@@ -97,8 +105,7 @@
   <script>
     var defaultChannels = ['askreddit', 'technology', 'worldnews', 'funny', 'todayilearned', 'python'];
     var currentChannel = 'askreddit';
-    var feedCount = 10;
-    var cachedFeedItems = [];
+    var lastPostId = '';
 
     function getAvatar(username) {
       return 'https://api.dicebear.com/7.x/identicon/svg?seed=' + encodeURIComponent(username);
@@ -142,8 +149,8 @@
     async function switchChannel(channelName) {
       currentChannel = channelName.replace(/^r\//, '').replace(/^#/, '').toLowerCase();
       document.getElementById('channel-title').innerText = currentChannel;
-      feedCount = 10;
-      cachedFeedItems = [];
+      document.getElementById('dummy-input').placeholder = `Message #${currentChannel}`;
+      lastPostId = '';
       renderChannels();
       closeThread();
       loadCurrentChannel();
@@ -151,48 +158,76 @@
 
     async function loadCurrentChannel() {
       var container = document.getElementById('messages-container');
-      
-      if (cachedFeedItems.length === 0) {
-        container.innerHTML = `<div style="color: #9CA3AF; text-align: center; padding: 40px; font-size: 12px;">Syncing #${currentChannel}...</div>`;
-        try {
-          const data = await fetchResilientRSS(`https://www.reddit.com/r/${currentChannel}/.rss`);
-          cachedFeedItems = data.items || [];
-        } catch (err) {
-          container.innerHTML = `<div style="color: #EF4444; padding: 20px; font-size: 12px;">Failed to load feed. Click Refresh.</div>`;
-          return;
-        }
-      }
-
-      container.innerHTML = '';
-      const postsToShow = cachedFeedItems.slice(0, feedCount);
-
-      postsToShow.forEach(function(p) {
-        var author = p.author || 'reddit_user';
-        var pubDate = new Date(p.pubDate).getTime() / 1000;
-        
-        container.innerHTML += `
-          <div class="msg-card">
-            <img src="${getAvatar(author)}" class="msg-avatar">
-            <div style="flex: 1; min-width: 0;">
-              <div>
-                <span class="msg-author">${escapeHTML(author)}</span>
-                <span class="msg-time">${formatTime(pubDate)}</span>
-              </div>
-              <div class="msg-title">${decodeHTML(p.title)}</div>
-              <button onclick="openThread('${p.link}')" class="thread-btn">💬 Read Comments</button>
-            </div>
-          </div>
-        `;
-      });
-
-      if (cachedFeedItems.length > feedCount) {
-        container.innerHTML += `<button onclick="loadMoreBread()" class="load-more-feed-btn">➕ Load More Posts</button>`;
-      }
+      container.innerHTML = `<div style="color: #9CA3AF; text-align: center; padding: 40px; font-size: 12px;">Syncing #${currentChannel}...</div>`;
+      await fetchMorePosts(true);
     }
 
-    function loadMoreBread() {
-      feedCount += 10;
-      loadCurrentChannel();
+    async function fetchMorePosts(isInitial) {
+      var container = document.getElementById('messages-container');
+      var existingBtn = document.getElementById('load-more-posts-btn');
+
+      if (existingBtn) {
+        existingBtn.innerText = 'Loading more posts...';
+        existingBtn.disabled = true;
+      }
+
+      try {
+        let feedUrl = `https://www.reddit.com/r/${currentChannel}/.rss`;
+        if (lastPostId) {
+          feedUrl += `?after=${lastPostId}`;
+        }
+
+        const data = await fetchResilientRSS(feedUrl);
+        if (existingBtn) existingBtn.remove();
+        if (isInitial) container.innerHTML = '';
+
+        const posts = data.items || [];
+
+        posts.forEach(function(p) {
+          var author = p.author || 'reddit_user';
+          var pubDate = new Date(p.pubDate).getTime() / 1000;
+          
+          container.innerHTML += `
+            <div class="msg-card">
+              <img src="${getAvatar(author)}" class="msg-avatar">
+              <div style="flex: 1; min-width: 0;">
+                <div>
+                  <span class="msg-author">${escapeHTML(author)}</span>
+                  <span class="msg-time">${formatTime(pubDate)}</span>
+                </div>
+                <div class="msg-title">${decodeHTML(p.title)}</div>
+                <button onclick="openThread('${p.link}')" class="thread-btn">💬 Read Comments</button>
+              </div>
+            </div>
+          `;
+        });
+
+        // Safely extract post ID from permalink link structure
+        if (posts.length > 0) {
+          for (let i = posts.length - 1; i >= 0; i--) {
+            let link = posts[i].link || '';
+            let parts = link.split('/comments/');
+            if (parts.length > 1) {
+              let idPart = parts[1].split('/')[0];
+              if (idPart) {
+                lastPostId = 't3_' + idPart;
+                break;
+              }
+            }
+          }
+        }
+
+        // Always append the Load More Posts button to the bottom of the scroll container
+        container.innerHTML += `<button id="load-more-posts-btn" onclick="fetchMorePosts(false)" class="load-more-feed-btn">➕ Load More Posts</button>`;
+        
+      } catch (err) {
+        if (isInitial) {
+          container.innerHTML = `<div style="color: #EF4444; padding: 20px; font-size: 12px;">Failed to load feed. Click Refresh.</div>`;
+        } else if (existingBtn) {
+          existingBtn.innerText = '⚠️ Failed to fetch. Click to retry.';
+          existingBtn.disabled = false;
+        }
+      }
     }
 
     async function openThread(link) {
