@@ -199,3 +199,100 @@
         }
 
         data.items.forEach(p => {
+          const author = p.author || 'reddit_user';
+          const pubDate = new Date(p.pubDate).getTime() / 1000;
+          const cleanTitle = decodeHTML(p.title);
+          const avatarUrl = getAvatar(author);
+          
+          container.innerHTML += `
+            <div class="msg-card">
+              <img src="${avatarUrl}" class="msg-avatar">
+              <div style="flex: 1; min-width: 0;">
+                <div class="msg-header">
+                  <span class="msg-author">${escapeHTML(author)}</span>
+                  <span class="msg-time">${formatTime(pubDate)}</span>
+                </div>
+                <div class="msg-title">${cleanTitle}</div>
+                <button onclick="openThread('${p.link}')" class="thread-btn">
+                  💬 View Comments Thread
+                </button>
+              </div>
+            </div>
+          `;
+        });
+
+      } catch (err) {
+        container.innerHTML = `<div style="color: #EF4444; padding: 20px; font-size: 12px;">Failed to load channel feed. Click Refresh to try again.</div>`;
+      }
+    }
+
+    async function openThread(link) {
+      const sidebar = document.getElementById('thread-sidebar');
+      const body = document.getElementById('thread-body');
+      
+      sidebar.classList.remove('hidden');
+      body.innerHTML = `<div style="color: #9CA3AF; text-align: center; padding: 20px; font-size: 12px;">Loading comments...</div>`;
+
+      try {
+        const data = await fetchCommentsRSS(link);
+        body.innerHTML = '';
+
+        const comments = data.items.slice(1);
+
+        if (comments.length === 0) {
+          body.innerHTML = `<div style="color: #9CA3AF; padding: 12px; font-size: 12px;">No comments available for this post.</div>`;
+          return;
+        }
+
+        comments.forEach(c => {
+          const author = c.author || 'commenter';
+          const pubDate = new Date(c.pubDate).getTime() / 1000;
+          let cleanText = c.content.replace(/<[^>]*>?/gm, '').trim();
+          cleanText = decodeHTML(cleanText);
+          const avatarUrl = getAvatar(author);
+
+          body.innerHTML += `
+            <div class="comment-card">
+              <img src="${avatarUrl}" class="comment-avatar">
+              <div style="flex: 1; min-width: 0;">
+                <div>
+                  <span class="comment-author">${escapeHTML(author)}</span>
+                  <span style="font-size: 10px; color: #6B7280; margin-left: 6px;">${formatTime(pubDate)}</span>
+                </div>
+                <div class="comment-text">${cleanText.slice(0, 350)}</div>
+              </div>
+            </div>
+          `;
+        });
+      } catch (e) {
+        body.innerHTML = `<div style="color: #EF4444; font-size: 12px;">Failed to load thread comments.</div>`;
+      }
+    }
+
+    function closeThread() { document.getElementById('thread-sidebar').classList.add('hidden'); }
+    function togglePanic() { document.getElementById('panic-overlay').classList.toggle('active'); }
+
+    function formatTime(utcSeconds) {
+      if (!utcSeconds) return 'just now';
+      const diff = Math.floor((Date.now() / 1000) - utcSeconds);
+      if (diff < 60) return 'just now';
+      if (diff < 3600) return `${Math.floor(diff/60)}m ago`;
+      if (diff < 86400) return `${Math.floor(diff/3600)}h ago`;
+      return `${Math.floor(diff/86400)}d ago`;
+    }
+
+    function escapeHTML(str) {
+      if (!str) return '';
+      return str.replace(/[&<>'"]/g, tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag));
+    }
+
+    function decodeHTML(html) {
+      const txt = document.createElement('textarea');
+      txt.innerHTML = html;
+      return txt.value;
+    }
+
+    window.onload = init;
+  </script>
+</body>
+</html>
