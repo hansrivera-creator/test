@@ -119,37 +119,37 @@
   </div>
 
   <script>
-    let defaultChannels = ['askreddit', 'technology', 'worldnews', 'funny', 'todayilearned', 'python'];
-    let currentChannel = 'askreddit';
+    var defaultChannels = ['askreddit', 'technology', 'worldnews', 'funny', 'todayilearned', 'python'];
+    var currentChannel = 'askreddit';
 
-    // REPLACE OR ADD YOUR GITHUB UPLOADED PFPs HERE (e.g. ['./pfp1.png', './pfp2.jpg'])
-    let customAvatars = [];
+    // List any uploaded images here (e.g. ['./alex.png', './sarah.jpg'])
+    var customAvatars = [];
 
     function getAvatar(username) {
       if (customAvatars.length > 0) {
-        // Hash the username to consistently pick the same profile picture for the same user
-        let hash = 0;
-        for (let i = 0; i < username.length; i++) hash = username.charCodeAt(i) + ((hash << 5) - hash);
-        const index = Math.abs(hash) % customAvatars.length;
+        var hash = 0;
+        for (var i = 0; i < username.length; i++) {
+          hash = username.charCodeAt(i) + ((hash << 5) - hash);
+        }
+        var index = Math.abs(hash) % customAvatars.length;
         return customAvatars[index];
       }
-      // Fallback to identicon if array is empty
-      return `https://api.dicebear.com/7.x/identicon/svg?seed=${encodeURIComponent(username)}`;
+      return 'https://api.dicebear.com/7.x/identicon/svg?seed=' + encodeURIComponent(username);
     }
 
     async function fetchRSS(subreddit) {
-      const rssUrl = `https://www.reddit.com/r/${subreddit}/.rss`;
-      const apiUrl = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(rssUrl)}`;
-      const res = await fetch(apiUrl);
+      var rssUrl = 'https://www.reddit.com/r/' + subreddit + '/.rss';
+      var apiUrl = 'https://api.rss2json.com/v1/api.json?rss_url=' + encodeURIComponent(rssUrl);
+      var res = await fetch(apiUrl);
       if (!res.ok) throw new Error("Fetch failed");
       return await res.json();
     }
 
     async function fetchCommentsRSS(link) {
-      const cleanLink = link.split('?')[0].replace(/\/$/, '');
-      const rssUrl = `${cleanLink}/.rss`;
-      const apiUrl = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(rssUrl)}`;
-      const res = await fetch(apiUrl);
+      var cleanLink = link.split('?')[0].replace(/\/$/, '');
+      var rssUrl = cleanLink + '/.rss';
+      var apiUrl = 'https://api.rss2json.com/v1/api.json?rss_url=' + encodeURIComponent(rssUrl);
+      var res = await fetch(apiUrl);
       if (!res.ok) throw new Error("Fetch failed");
       return await res.json();
     }
@@ -157,16 +157,17 @@
     function init() {
       renderChannels();
       switchChannel(currentChannel);
-      document.addEventListener('keydown', (e) => {
+      document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape') togglePanic();
       });
     }
 
     function renderChannels() {
-      const container = document.getElementById('channels-container');
+      var container = document.getElementById('channels-container');
+      if (!container) return;
       container.innerHTML = '';
-      defaultChannels.forEach(ch => {
-        const activeClass = ch.toLowerCase() === currentChannel.toLowerCase() ? 'active' : '';
+      defaultChannels.forEach(function(ch) {
+        var activeClass = ch.toLowerCase() === currentChannel.toLowerCase() ? 'active' : '';
         container.innerHTML += `
           <div class="channel-item ${activeClass}" onclick="switchChannel('${ch}')">
             <span class="channel-prefix">#</span>
@@ -178,19 +179,22 @@
 
     async function switchChannel(channelName) {
       currentChannel = channelName.replace(/^r\//, '').replace(/^#/, '').toLowerCase();
-      document.getElementById('channel-title').innerText = currentChannel;
-      document.getElementById('dummy-input').placeholder = `Message #${currentChannel}`;
+      var titleEl = document.getElementById('channel-title');
+      var inputEl = document.getElementById('dummy-input');
+      if (titleEl) titleEl.innerText = currentChannel;
+      if (inputEl) inputEl.placeholder = 'Message #' + currentChannel;
       renderChannels();
       closeThread();
       loadCurrentChannel();
     }
 
     async function loadCurrentChannel() {
-      const container = document.getElementById('messages-container');
+      var container = document.getElementById('messages-container');
+      if (!container) return;
       container.innerHTML = `<div style="color: #9CA3AF; text-align: center; padding: 40px; font-size: 12px;">Syncing #${currentChannel}...</div>`;
 
       try {
-        const data = await fetchRSS(currentChannel);
+        var data = await fetchRSS(currentChannel);
         container.innerHTML = '';
 
         if (!data.items || data.items.length === 0) {
@@ -198,11 +202,11 @@
           return;
         }
 
-        data.items.forEach(p => {
-          const author = p.author || 'reddit_user';
-          const pubDate = new Date(p.pubDate).getTime() / 1000;
-          const cleanTitle = decodeHTML(p.title);
-          const avatarUrl = getAvatar(author);
+        data.items.forEach(function(p) {
+          var author = p.author || 'reddit_user';
+          var pubDate = new Date(p.pubDate).getTime() / 1000;
+          var cleanTitle = decodeHTML(p.title);
+          var avatarUrl = getAvatar(author);
           
           container.innerHTML += `
             <div class="msg-card">
@@ -227,29 +231,30 @@
     }
 
     async function openThread(link) {
-      const sidebar = document.getElementById('thread-sidebar');
-      const body = document.getElementById('thread-body');
+      var sidebar = document.getElementById('thread-sidebar');
+      var body = document.getElementById('thread-body');
       
-      sidebar.classList.remove('hidden');
-      body.innerHTML = `<div style="color: #9CA3AF; text-align: center; padding: 20px; font-size: 12px;">Loading comments...</div>`;
+      if (sidebar) sidebar.classList.remove('hidden');
+      if (body) body.innerHTML = `<div style="color: #9CA3AF; text-align: center; padding: 20px; font-size: 12px;">Loading comments...</div>`;
 
       try {
-        const data = await fetchCommentsRSS(link);
+        var data = await fetchCommentsRSS(link);
+        if (!body) return;
         body.innerHTML = '';
 
-        const comments = data.items.slice(1);
+        var comments = data.items.slice(1);
 
         if (comments.length === 0) {
           body.innerHTML = `<div style="color: #9CA3AF; padding: 12px; font-size: 12px;">No comments available for this post.</div>`;
           return;
         }
 
-        comments.forEach(c => {
-          const author = c.author || 'commenter';
-          const pubDate = new Date(c.pubDate).getTime() / 1000;
-          let cleanText = c.content.replace(/<[^>]*>?/gm, '').trim();
+        comments.forEach(function(c) {
+          var author = c.author || 'commenter';
+          var pubDate = new Date(c.pubDate).getTime() / 1000;
+          var cleanText = c.content.replace(/<[^>]*>?/gm, '').trim();
           cleanText = decodeHTML(cleanText);
-          const avatarUrl = getAvatar(author);
+          var avatarUrl = getAvatar(author);
 
           body.innerHTML += `
             <div class="comment-card">
@@ -265,34 +270,48 @@
           `;
         });
       } catch (e) {
-        body.innerHTML = `<div style="color: #EF4444; font-size: 12px;">Failed to load thread comments.</div>`;
+        if (body) body.innerHTML = `<div style="color: #EF4444; font-size: 12px;">Failed to load thread comments.</div>`;
       }
     }
 
-    function closeThread() { document.getElementById('thread-sidebar').classList.add('hidden'); }
-    function togglePanic() { document.getElementById('panic-overlay').classList.toggle('active'); }
+    function closeThread() {
+      var sidebar = document.getElementById('thread-sidebar');
+      if (sidebar) sidebar.classList.add('hidden');
+    }
+
+    function togglePanic() {
+      var overlay = document.getElementById('panic-overlay');
+      if (overlay) overlay.classList.toggle('active');
+    }
 
     function formatTime(utcSeconds) {
       if (!utcSeconds) return 'just now';
-      const diff = Math.floor((Date.now() / 1000) - utcSeconds);
+      var diff = Math.floor((Date.now() / 1000) - utcSeconds);
       if (diff < 60) return 'just now';
-      if (diff < 3600) return `${Math.floor(diff/60)}m ago`;
-      if (diff < 86400) return `${Math.floor(diff/3600)}h ago`;
-      return `${Math.floor(diff/86400)}d ago`;
+      if (diff < 3600) return Math.floor(diff/60) + 'm ago';
+      if (diff < 86400) return Math.floor(diff/3600) + 'h ago';
+      return Math.floor(diff/86400) + 'd ago';
     }
 
     function escapeHTML(str) {
       if (!str) return '';
-      return str.replace(/[&<>'"]/g, tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag));
+      return str.replace(/[&<>'"]/g, function(tag) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag;
+      });
     }
 
     function decodeHTML(html) {
-      const txt = document.createElement('textarea');
+      var txt = document.createElement('textarea');
       txt.innerHTML = html;
       return txt.value;
     }
 
-    window.onload = init;
+    // Force immediate execution when DOM is ready
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', init);
+    } else {
+      init();
+    }
   </script>
 </body>
 </html>
