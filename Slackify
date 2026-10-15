@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Slack | General</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    /* Break out of Shopify theme containers & remove gray bottom bar */
+    html, body {
+      margin: 0 !important;
+      padding: 0 !important;
+      height: 100vh !important;
+      width: 100vw !important;
+      overflow: hidden !important;
+      background-color: #1A1D21 !important;
+    }
+    .page-width, main, #MainContent, .main-content {
+      max-width: 100% !important;
+      padding: 0 !important;
+      margin: 0 !important;
+      background-color: #1A1D21 !important;
+    }
+
+    :root {
+      --slack-sidebar: #3F0E40;
+      --slack-sidebar-hover: #350D36;
+      --slack-sidebar-active: #1164A3;
+    }
+    .slack-sidebar { background-color: var(--slack-sidebar); }
+    .slack-sidebar-item:hover { background-color: var(--slack-sidebar-hover); }
+    .slack-sidebar-item.active { background-color: var(--slack-sidebar-active); color: white; }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 3px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+  </style>
+</head>
+<body class="h-screen w-screen overflow-hidden flex flex-col text-gray-100 antialiased">
+
+  <!-- TOP HEADER / SEARCH BAR -->
+  <header class="h-10 bg-[#121016] border-b border-gray-800 flex items-center justify-between px-4 shrink-0 select-none">
+    <div class="flex items-center space-x-3 w-1/4">
+      <button class="text-gray-400 hover:text-white text-xs"><i class="fa-solid fa-clock-rotate-left"></i></button>
+    </div>
+    
+    <div class="w-2/4 max-w-xl">
+      <div class="relative flex items-center">
+        <input 
+          id="subreddit-search"
+          type="text" 
+          placeholder="Search subreddits or channels (e.g. technology, askreddit)..." 
+          class="w-full bg-[#222529] text-xs text-gray-200 placeholder-gray-500 rounded px-8 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500 border border-gray-700"
+          onkeydown="if(event.key==='Enter') switchChannel(this.value)"
+        />
+        <i class="fa-solid fa-magnifying-glass absolute left-2.5 text-xs text-gray-500"></i>
+      </div>
+    </div>
+
+    <div class="flex items-center justify-end space-x-3 w-1/4">
+      <button onclick="togglePanic()" class="bg-red-600 hover:bg-red-700 text-white text-xs px-2.5 py-1 rounded font-medium transition flex items-center space-x-1">
+        <i class="fa-solid fa-shield-halved"></i>
+        <span>Panic Mode (Esc)</span>
+      </button>
+      <div class="relative cursor-pointer" onclick="togglePanic()">
+        <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Hans" class="w-6 h-6 rounded-md border border-gray-600">
+        <span class="absolute -bottom-0.5 -right-0.5 w-2 h-2 bg-green-500 rounded-full border border-black"></span>
+      </div>
+    </div>
+  </header>
+
+  <!-- MAIN CONTAINER -->
+  <div class="flex-1 flex overflow-hidden">
+    
+    <!-- LEFT SIDEBAR -->
+    <aside class="w-64 slack-sidebar flex flex-col border-r border-gray-800 shrink-0 select-none">
+      <div class="h-12 border-b border-gray-700/50 flex items-center justify-between px-4">
+        <div class="flex items-center space-x-2 cursor-pointer hover:opacity-80">
+          <span class="font-bold text-white text-sm tracking-wide">Shopify</span>
+          <i class="fa-solid fa-chevron-down text-xs text-gray-400"></i>
+        </div>
+        <button class="w-7 h-7 rounded-full bg-white text-black flex items-center justify-center hover:bg-gray-200 transition text-xs">
+          <i class="fa-solid fa-pen-to-square text-[#3F0E40]"></i>
+        </button>
+      </div>
+
+      <div class="flex-1 overflow-y-auto py-3 space-y-4">
+        <div>
+          <div class="flex items-center justify-between px-4 mb-1 text-gray-400 text-xs font-semibold uppercase tracking-wider">
+            <span>Channels</span>
+            <button onclick="openAddModal()" class="hover:text-white"><i class="fa-solid fa-plus"></i></button>
+          </div>
+          <div id="channels-container" class="space-y-0.5 text-xs text-gray-300"></div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- CENTER CHAT AREA -->
+    <main class="flex-1 flex flex-col bg-[#1A1D21] min-w-0">
+      <div class="h-12 border-b border-gray-800 flex items-center justify-between px-6 shrink-0 bg-[#1A1D21]">
+        <div class="flex items-center space-x-2">
+          <span class="font-bold text-white text-base" id="channel-title"># askreddit</span>
+          <span class="text-xs text-gray-500">Official Shopify team discussion</span>
+        </div>
+        <div class="flex items-center space-x-3 text-gray-400 text-xs">
+          <button onclick="loadCurrentChannel()" class="hover:text-white flex items-center space-x-1 border border-gray-700 bg-[#222529] px-2.5 py-1 rounded">
+            <i class="fa-solid fa-rotate-right text-xs"></i>
+            <span>Refresh</span>
+          </button>
+        </div>
+      </div>
+
+      <div id="messages-container" class="flex-1 overflow-y-auto p-6 space-y-6"></div>
+
+      <div class="p-4 bg-[#1A1D21] border-t border-gray-800 shrink-0">
+        <div class="bg-[#222529] border border-gray-700 rounded-lg p-2">
+          <textarea id="dummy-input" rows="1" placeholder="Message #askreddit" class="w-full bg-transparent text-sm text-gray-200 placeholder-gray-500 focus:outline-none resize-none"></textarea>
+        </div>
+      </div>
+    </main>
+
+    <!-- RIGHT SIDEBAR (THREAD COMMENTS) -->
+    <aside id="thread-sidebar" class="w-96 bg-[#1A1D21] border-l border-gray-800 flex flex-col shrink-0 hidden">
+      <div class="h-12 border-b border-gray-800 flex items-center justify-between px-4">
+        <div class="font-bold text-white text-sm">Thread</div>
+        <button onclick="closeThread()" class="text-gray-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div id="thread-content" class="flex-1 overflow-y-auto p-4 space-y-4"></div>
+    </aside>
+
+  </div>
+
+  <!-- PANIC OVERLAY SCREEN -->
+  <div id="panic-overlay" class="fixed inset-0 bg-[#1A1D21] text-gray-200 p-8 z-50 overflow-y-auto hidden">
+    <div class="max-w-4xl mx-auto space-y-6">
+      <div class="flex items-center justify-between border-b border-gray-800 pb-4">
+        <h1 class="text-xl font-bold text-white flex items-center space-x-2">
+          <i class="fa-solid fa-triangle-exclamation text-yellow-500"></i>
+          <span>Shopify Support Incident Log #70665123</span>
+        </h1>
+        <button onclick="togglePanic()" class="text-xs bg-gray-800 hover:bg-gray-700 px-3 py-1.5 rounded">Resume Workspace</button>
+      </div>
+      <div class="bg-[#222529] p-4 rounded border border-gray-700 text-xs font-mono space-y-2 text-gray-300">
+        <p class="text-green-400">[2026-10-15 17:50:12 UTC] STATUS: RESOLVED - Merchant Plus Migration Rates</p>
+        <p>Reverting to standard rates would be an ongoing task across all three regions.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ADD CHANNEL MODAL -->
+  <div id="add-modal" class="fixed inset-0 bg-black/70 flex items-center justify-center z-50 hidden">
+    <div class="bg-[#222529] border border-gray-700 rounded-lg w-96 p-6 space-y-4">
+      <h3 class="text-base font-bold text-white">Add a Channel (Subreddit)</h3>
+      <input id="modal-input" type="text" placeholder="e.g. askreddit, python, technology" class="w-full bg-[#1A1D21] border border-gray-700 rounded p-2 text-sm text-gray-200 focus:outline-none">
+      <div class="flex justify-end space-x-2">
+        <button onclick="closeAddModal()" class="px-3 py-1.5 text-xs text-gray-400 hover:text-white">Cancel</button>
+        <button onclick="submitAddChannel()" class="px-3 py-1.5 text-xs bg-blue-600 hover:bg-blue-500 text-white rounded font-medium">Add Channel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- JAVASCRIPT ENGINE -->
+  <script>
+    const GOOGLE_SCRIPT_URL = "https://script.google.com/a/macros/shopify.com/s/AKfycbyIYgGRDzhYv8dPSQs9GoS7gXe8jQX0FGQMbFFN8VoCR1h9XsScrW0zdsujY5SYaaV1zA/exec";
+
+    let defaultChannels = ['askreddit', 'technology', 'worldnews', 'funny', 'todayilearned', 'python'];
+    let currentChannel = 'askreddit';
+    let savedChannels = JSON.parse(localStorage.getItem('slackit_channels')) || defaultChannels;
+
+    // CSP-Bypassing JSONP Engine
+    function fetchRedditViaJSONP(redditPath) {
+      return new Promise((resolve, reject) => {
+        const callbackName = 'jsonp_cb_' + Math.random().toString(36).substring(2);
+        const targetUrl = `https://www.reddit.com${redditPath}`;
+        
+        const timeout = setTimeout(() => {
+          cleanup();
+          reject(new Error("Request timed out"));
+        }, 10000);
+
+        function cleanup() {
+          if (window[callbackName]) delete window[callbackName];
+          const elem = document.getElementById(callbackName);
+          if (elem) elem.remove();
+          clearTimeout(timeout);
+        }
+
+        window[callbackName] = function(data) {
+          cleanup();
+          resolve(data);
+        };
+
+        const script = document.createElement('script');
+        script.id = callbackName;
+        script.onerror = function() {
+          cleanup();
+          reject(new Error("Script load error"));
+        };
+
+        script.src = `${GOOGLE_SCRIPT_URL}?url=${encodeURIComponent(targetUrl)}&callback=${callbackName}`;
+        document.body.appendChild(script);
+      });
+    }
+
+    function init() {
+      renderChannels();
+      switchChannel(currentChannel);
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') togglePanic();
+      });
+    }
+
+    function renderChannels() {
+      const container = document.getElementById('channels-container');
+      container.innerHTML = '';
+      savedChannels.forEach(ch => {
+        const activeClass = ch.toLowerCase() === currentChannel.toLowerCase() ? 'active' : '';
+        container.innerHTML += `
+          <div class="slack-sidebar-item px-4 py-1 flex items-center justify-between cursor-pointer ${activeClass}" onclick="switchChannel('${ch}')">
+            <div class="flex items-center space-x-2 truncate">
+              <span class="text-gray-400">#</span>
+              <span class="truncate">${ch}</span>
+            </div>
+          </div>
+        `;
+      });
+    }
+
+    async function switchChannel(channelName) {
+      currentChannel = channelName.replace(/^r\//, '').replace(/^#/, '').toLowerCase();
+      document.getElementById('channel-title').innerText = `# ${currentChannel}`;
+      document.getElementById('dummy-input').placeholder = `Message #${currentChannel}`;
+      renderChannels();
+      closeThread();
+      loadCurrentChannel();
+    }
+
+    async function loadCurrentChannel() {
+      const container = document.getElementById('messages-container');
+      container.innerHTML = `
+        <div class="flex items-center justify-center py-12 text-gray-500 space-x-2">
+          <i class="fa-solid fa-spinner fa-spin"></i>
+          <span>Syncing #${currentChannel}...</span>
+        </div>
+      `;
+
+      try {
+        const json = await fetchRedditViaJSONP(`/r/${currentChannel}/hot.json?limit=25`);
+        
+        if (json.error) {
+          throw new Error(json.error);
+        }
+
+        const posts = json.data.children.map(c => c.data);
+
+        container.innerHTML = '';
+        posts.forEach(p => {
+          container.innerHTML += renderSlackMessage(p);
+        });
+
+      } catch (err) {
+        container.innerHTML = `
+          <div class="bg-red-900/30 border border-red-700/50 p-4 rounded text-red-200 text-xs space-y-1">
+            <div class="font-bold"><i class="fa-solid fa-triangle-exclamation"></i> Sync Error</div>
+            <div>Shopify CSP blocked outbound fetch. Refresh page or switch channels.</div>
+          </div>
+        `;
+      }
+    }
+
+    function renderSlackMessage(p) {
+      const avatarSeed = p.author || 'anon';
+      const timeAgo = formatTime(p.created_utc);
+      const isSelfText = p.selftext && p.selftext.trim().length > 0;
+      
+      return `
+        <div class="flex space-x-3 group hover:bg-[#222529]/40 p-2 -mx-2 rounded transition">
+          <img src="https://api.dicebear.com/7.x/identicon/svg?seed=${avatarSeed}" class="w-9 h-9 rounded bg-gray-800 shrink-0">
+          <div class="flex-1 min-w-0">
+            <div class="flex items-baseline space-x-2">
+              <span class="font-bold text-white text-sm hover:underline cursor-pointer">${p.author}</span>
+              <span class="text-[10px] text-gray-500">${timeAgo}</span>
+            </div>
+            
+            <div class="text-sm text-gray-200 mt-0.5 font-medium leading-normal">
+              ${p.title}
+            </div>
+
+            ${isSelfText ? `
+              <div class="text-xs text-gray-400 mt-1 line-clamp-3 leading-relaxed">
+                ${escapeHTML(p.selftext)}
+              </div>
+            ` : ''}
+
+            ${p.url && !p.url.includes('/comments/') ? `
+              <a href="${p.url}" target="_blank" class="inline-flex items-center space-x-1 text-xs text-blue-400 hover:underline mt-1">
+                <i class="fa-solid fa-link text-[10px]"></i>
+                <span class="truncate max-w-md">${p.url}</span>
+              </a>
+            ` : ''}
+
+            <div class="flex items-center space-x-4 mt-2 text-xs text-gray-400">
+              <button onclick="openThread('${p.subreddit}', '${p.id}')" class="hover:bg-gray-800 px-2 py-0.5 rounded text-blue-400 font-medium transition flex items-center space-x-1">
+                <i class="fa-regular fa-comment"></i>
+                <span>${p.num_comments || 0} replies</span>
+              </button>
+              <span class="text-gray-600">•</span>
+              <span class="text-gray-500"><i class="fa-solid fa-thumbs-up text-[10px]"></i> ${p.score || 1}</span>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    async function openThread(subreddit, postId) {
+      const sidebar = document.getElementById('thread-sidebar');
+      const content = document.getElementById('thread-content');
+      
+      sidebar.classList.remove('hidden');
+      content.innerHTML = `
+        <div class="flex items-center justify-center py-12 text-gray-500 space-x-2">
+          <i class="fa-solid fa-spinner fa-spin"></i>
+          <span>Loading thread...</span>
+        </div>
+      `;
+
+      try {
+        const json = await fetchRedditViaJSONP(`/r/${subreddit}/comments/${postId}.json`);
+        const comments = json[1].data.children;
+
+        content.innerHTML = '';
+        comments.forEach(c => {
+          if (c.kind === 't1') {
+            const comment = c.data;
+            content.innerHTML += `
+              <div class="flex space-x-2 text-xs">
+                <img src="https://api.dicebear.com/7.x/identicon/svg?seed=${comment.author}" class="w-6 h-6 rounded shrink-0">
+                <div class="flex-1">
+                  <div class="flex items-center space-x-2">
+                    <span class="font-bold text-gray-300">${comment.author}</span>
+                    <span class="text-[10px] text-gray-500">${formatTime(comment.created_utc)}</span>
+                  </div>
+                  <div class="text-gray-300 mt-1 leading-normal">${escapeHTML(comment.body || '')}</div>
+                </div>
+              </div>
+            `;
+          }
+        });
+      } catch (e) {
+        content.innerHTML = `<div class="text-red-400 text-xs p-4">Failed to load comments.</div>`;
+      }
+    }
+
+    function closeThread() {
+      document.getElementById('thread-sidebar').classList.add('hidden');
+    }
+
+    function togglePanic() {
+      document.getElementById('panic-overlay').classList.toggle('hidden');
+    }
+
+    function openAddModal() { document.getElementById('add-modal').classList.remove('hidden'); }
+    function closeAddModal() { document.getElementById('add-modal').classList.add('hidden'); }
+
+    function submitAddChannel() {
+      const input = document.getElementById('modal-input');
+      const val = input.value.trim().toLowerCase().replace(/^r\//, '');
+      if (val && !savedChannels.includes(val)) {
+        savedChannels.push(val);
+        localStorage.setItem('slackit_channels', JSON.stringify(savedChannels));
+        switchChannel(val);
+      }
+      input.value = '';
+      closeAddModal();
+    }
+
+    function formatTime(utcSeconds) {
+      if (!utcSeconds) return 'just now';
+      const diff = Math.floor((Date.now() / 1000) - utcSeconds);
+      if (diff < 60) return `${diff}s ago`;
+      if (diff < 3600) return `${Math.floor(diff/60)}m ago`;
+      if (diff < 86400) return `${Math.floor(diff/3600)}h ago`;
+      return `${Math.floor(diff/86400)}d ago`;
+    }
+
+    function escapeHTML(str) {
+      return str.replace(/[&<>'"]/g, tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag));
+    }
+
+    window.onload = init;
+  </script>
+</body>
+</html>
