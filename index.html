@@ -44,7 +44,7 @@
     .thread-btn { margin-top: 6px; background: none; border: none; color: #60A5FA; font-size: 11px; font-weight: 500; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; padding: 2px 0; }
     .thread-btn:hover { text-decoration: underline; }
 
-    .thread-sidebar { width: 400px; background: #1A1D21; border-left: 1px solid #2D3748; display: flex; flex-direction: column; flex-shrink: 0; }
+    .thread-sidebar { width: 420px; background: #1A1D21; border-left: 1px solid #2D3748; display: flex; flex-direction: column; flex-shrink: 0; }
     .thread-sidebar.hidden { display: none; }
     .thread-header { height: 44px; border-bottom: 1px solid #2D3748; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; color: white; font-weight: 700; font-size: 13px; }
     .thread-body { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 14px; }
@@ -54,6 +54,9 @@
     .comment-text { color: #9CA3AF; margin-top: 3px; line-height: 1.4; word-break: break-word; }
     .close-btn { background: none; border: none; color: #9CA3AF; font-size: 14px; cursor: pointer; padding: 2px 6px; border-radius: 3px; }
     .close-btn:hover { color: white; background: #2D3748; }
+
+    .load-more-btn { width: 100%; background: #222529; border: 1px solid #374151; color: #60A5FA; padding: 8px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; margin-top: 10px; text-align: center; }
+    .load-more-btn:hover { background: #2D3748; color: white; }
 
     .input-wrapper { padding: 12px 20px; border-top: 1px solid #2D3748; background: #1A1D21; }
     .message-input { width: 100%; background: #222529; border: 1px solid #374151; border-radius: 6px; padding: 8px 12px; color: white; font-size: 12px; outline: none; }
@@ -121,12 +124,13 @@
   <script>
     var defaultChannels = ['askreddit', 'technology', 'worldnews', 'funny', 'todayilearned', 'python'];
     var currentChannel = 'askreddit';
+    var activeThreadLink = '';
+    var commentPage = 1;
 
     function getAvatar(username) {
       return 'https://api.dicebear.com/7.x/identicon/svg?seed=' + encodeURIComponent(username);
     }
 
-    // Parallel Proxy Race - Tries 3 proxies simultaneously and returns the fastest successful payload
     async function fetchResilientRSS(rssUrl) {
       const targetApi = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(rssUrl)}`;
       
@@ -140,7 +144,7 @@
         const res = await fetch(url);
         if (!res.ok) throw new Error("HTTP error");
         let data = await res.json();
-        if (data.contents) data = JSON.parse(data.contents); // AllOrigins wrapper
+        if (data.contents) data = JSON.parse(data.contents);
         if (data && data.items && data.items.length > 0) return data;
         throw new Error("Invalid payload");
       };
@@ -222,17 +226,32 @@
       var sidebar = document.getElementById('thread-sidebar');
       var body = document.getElementById('thread-body');
       
+      activeThreadLink = link.split('?')[0].replace(/\/$/, '');
+      commentPage = 1;
+      
       sidebar.classList.remove('hidden');
       body.innerHTML = `<div style="color: #9CA3AF; text-align: center; padding: 20px; font-size: 12px;">Loading comments...</div>`;
 
+      await loadMoreComments(true);
+    }
+
+    async function loadMoreComments(isInitial = false) {
+      var body = document.getElementById('thread-body');
+      var loadBtn = document.getElementById('load-more-comments-btn');
+
+      if (loadBtn) loadBtn.innerText = 'Loading...';
+
       try {
-        const cleanLink = link.split('?')[0].replace(/\/$/, '');
-        const data = await fetchResilientRSS(`${cleanLink}/.rss`);
-        body.innerHTML = '';
+        // Appends sort=new offset queries to fetch additional comment batches
+        const targetUrl = commentPage === 1 ? `${activeThreadLink}/.rss` : `${activeThreadLink}/.rss?sort=new&limit=25`;
+        const data = await fetchResilientRSS(targetUrl);
+        
+        if (isInitial) body.innerHTML = '';
+        if (loadBtn) loadBtn.remove();
 
-        const comments = data.items.slice(1);
+        const comments = data.items.slice(isInitial ? 1 : 0);
 
-        if (comments.length === 0) {
+        if (comments.length === 0 && isInitial) {
           body.innerHTML = `<div style="color: #9CA3AF; padding: 12px; font-size: 12px;">No comments available for this post.</div>`;
           return;
         }
@@ -252,13 +271,17 @@
                   <span class="comment-author">${escapeHTML(author)}</span>
                   <span style="font-size: 10px; color: #6B7280; margin-left: 6px;">${formatTime(pubDate)}</span>
                 </div>
-                <div class="comment-text">${cleanText.slice(0, 350)}</div>
+                <div class="comment-text">${cleanText.slice(0, 400)}</div>
               </div>
             </div>
           `;
         });
+
+        commentPage++;
+        body.innerHTML += `<button id="load-more-comments-btn" onclick="loadMoreComments(false)" class="load-more-btn">➕ Load More Replies</button>`;
+
       } catch (e) {
-        body.innerHTML = `<div style="color: #EF4444; font-size: 12px;">Failed to load thread comments. Click again to retry.</div>`;
+        if (loadBtn) loadBtn.innerText = '⚠️ Failed to fetch more. Click to try again.';
       }
     }
 
