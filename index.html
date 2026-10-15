@@ -87,13 +87,12 @@
 
     async function fetchRedditData(redditPath) {
       const targetUrl = `https://www.reddit.com${redditPath}`;
-      const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`;
+      const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
       
       const res = await fetch(proxyUrl);
       if (!res.ok) throw new Error("Proxy request failed");
       
-      const data = await res.json();
-      return JSON.parse(data.contents);
+      return await res.json();
     }
 
     function init() {
