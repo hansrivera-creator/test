@@ -1,290 +1,164 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Slack | General</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
-    html, body { width: 100vw; height: 100vh; overflow: hidden; background-color: #1A1D21; color: #D1D5DB; }
-    
-    /* App Header */
-    .app-header { height: 38px; background: #121016; border-bottom: 1px solid #2D3748; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; user-select: none; }
-    .search-input { width: 100%; max-width: 460px; background: #222529; border: 1px solid #374151; border-radius: 5px; padding: 4px 12px; color: #E5E7EB; font-size: 12px; outline: none; }
-    .search-input:focus { border-color: #3B82F6; }
-    .panic-btn { background: #DC2626; color: white; border: none; padding: 4px 10px; border-radius: 4px; font-size: 11px; font-weight: 600; cursor: pointer; transition: background 0.15s; }
-    .panic-btn:hover { background: #B91C1C; }
-    
-    /* Main Layout */
-    .app-main { display: flex; height: calc(100vh - 38px); width: 100vw; }
-    
-    /* Sidebar */
-    .sidebar { width: 220px; background: #3F0E40; border-right: 1px solid #2D3748; display: flex; flex-direction: column; flex-shrink: 0; }
-    .sidebar-header { height: 44px; border-bottom: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: space-between; padding: 0 16px; color: white; font-weight: 700; font-size: 14px; }
-    .sidebar-section-title { padding: 12px 16px 4px; font-size: 11px; font-weight: 700; color: #9CA3AF; text-transform: uppercase; tracking: 0.05em; }
-    .channel-item { padding: 5px 16px; font-size: 13px; color: #9CA3AF; cursor: pointer; display: flex; align-items: center; gap: 8px; border-radius: 0 4px 4px 0; margin-right: 8px; }
-    .channel-item:hover { background: #350D36; color: white; }
-    .channel-item.active { background: #1164A3; color: white; font-weight: 600; }
-    .channel-prefix { color: #6B7280; font-weight: normal; }
-    .channel-item.active .channel-prefix { color: rgba(255,255,255,0.7); }
-    
-    /* Chat Area */
-    .chat-area { flex: 1; display: flex; flex-direction: column; background: #1A1D21; min-width: 0; }
-    .chat-header { height: 44px; border-bottom: 1px solid #2D3748; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; color: white; shrink: 0; }
-    .chat-title { font-weight: 700; font-size: 15px; display: flex; align-items: center; gap: 6px; }
-    .refresh-btn { background: #222529; border: 1px solid #374151; color: #D1D5DB; padding: 4px 10px; border-radius: 4px; font-size: 11px; cursor: pointer; transition: background 0.15s; }
-    .refresh-btn:hover { background: #2D3748; color: white; }
-    
-    /* Messages Stream */
-    .messages-container { flex: 1; overflow-y: auto; padding: 16px 20px; display: flex; flex-direction: column; gap: 12px; }
-    .msg-card { display: flex; gap: 12px; padding: 8px 10px; border-radius: 6px; transition: background 0.1s; }
-    .msg-card:hover { background: rgba(255, 255, 255, 0.03); }
-    .msg-avatar { width: 36px; height: 36px; border-radius: 4px; background: #2D3748; flex-shrink: 0; }
-    .msg-header { display: flex; align-items: baseline; gap: 8px; }
-    .msg-author { font-weight: 700; color: white; font-size: 13px; cursor: pointer; }
-    .msg-author:hover { text-decoration: underline; }
-    .msg-time { font-size: 11px; color: #6B7280; }
-    .msg-title { font-size: 13px; color: #E5E7EB; margin-top: 2px; line-height: 1.45; word-break: break-word; }
-    
-    /* Action Buttons */
-    .thread-btn { margin-top: 6px; background: none; border: none; color: #60A5FA; font-size: 11px; font-weight: 500; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; padding: 2px 0; }
-    .thread-btn:hover { text-decoration: underline; }
+<script>
+  let defaultChannels = ['askreddit', 'technology', 'worldnews', 'funny', 'todayilearned', 'python'];
+  let currentChannel = 'askreddit';
 
-    /* Thread Comments Sidebar */
-    .thread-sidebar { width: 380px; background: #1A1D21; border-left: 1px solid #2D3748; display: flex; flex-direction: column; flex-shrink: 0; }
-    .thread-sidebar.hidden { display: none; }
-    .thread-header { height: 44px; border-bottom: 1px solid #2D3748; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; color: white; font-weight: 700; font-size: 13px; }
-    .thread-body { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 14px; }
-    .comment-card { display: flex; gap: 10px; font-size: 12px; }
-    .comment-avatar { width: 26px; height: 26px; border-radius: 4px; background: #2D3748; flex-shrink: 0; }
-    .comment-author { font-weight: 700; color: #E5E7EB; }
-    .comment-text { color: #9CA3AF; margin-top: 3px; line-height: 1.4; word-break: break-word; }
-    .close-btn { background: none; border: none; color: #9CA3AF; font-size: 14px; cursor: pointer; padding: 2px 6px; border-radius: 3px; }
-    .close-btn:hover { color: white; background: #2D3748; }
+  async function fetchRSS(subreddit) {
+    const rssUrl = `https://www.reddit.com/r/${subreddit}/.rss`;
+    const apiUrl = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(rssUrl)}`;
+    const res = await fetch(apiUrl);
+    if (!res.ok) throw new Error("Fetch failed");
+    return await res.json();
+  }
 
-    /* Input Bar */
-    .input-wrapper { padding: 12px 20px; border-top: 1px solid #2D3748; background: #1A1D21; }
-    .message-input { width: 100%; background: #222529; border: 1px solid #374151; border-radius: 6px; padding: 8px 12px; color: white; font-size: 12px; outline: none; }
-    .message-input:focus { border-color: #4B5563; }
-
-    /* Panic Screen */
-    #panic-overlay { position: fixed; inset: 0; background: #1A1D21; z-index: 9999; padding: 32px; display: none; }
-    #panic-overlay.active { display: block; }
-  </style>
-</head>
-<body>
-
-  <!-- App Header -->
-  <div class="app-header">
-    <div style="color: #9CA3AF; font-size: 11px; font-weight: 600;">🕒 Workspace</div>
-    <input id="subreddit-search" class="search-input" type="text" placeholder="Search subreddit or channel (e.g. askreddit, technology)..." onkeydown="if(event.key==='Enter') switchChannel(this.value)">
-    <button onclick="togglePanic()" class="panic-btn">🛡️ Panic Mode (Esc)</button>
-  </div>
-
-  <!-- Main Container -->
-  <div class="app-main">
+  async function fetchCommentsRSS(link) {
+    // Clean URL down to clean permalink path before appending .rss
+    const cleanLink = link.split('?')[0].replace(/\/$/, '');
+    const rssUrl = `${cleanLink}/.rss`;
+    const apiUrl = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(rssUrl)}`;
     
-    <!-- Left Sidebar -->
-    <div class="sidebar">
-      <div class="sidebar-header">
-        <span>Shopify Workspace</span>
-      </div>
-      <div style="padding: 8px 0;">
-        <div class="sidebar-section-title">Channels</div>
-        <div id="channels-container"></div>
-      </div>
-    </div>
+    const res = await fetch(apiUrl);
+    if (!res.ok) throw new Error("Fetch failed");
+    return await res.json();
+  }
 
-    <!-- Center Chat Feed -->
-    <div class="chat-area">
-      <div class="chat-header">
-        <div class="chat-title">
-          <span style="color: #6B7280;">#</span>
-          <span id="channel-title">askreddit</span>
+  function init() {
+    renderChannels();
+    switchChannel(currentChannel);
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') togglePanic();
+    });
+  }
+
+  function renderChannels() {
+    const container = document.getElementById('channels-container');
+    container.innerHTML = '';
+    defaultChannels.forEach(ch => {
+      const activeClass = ch.toLowerCase() === currentChannel.toLowerCase() ? 'active' : '';
+      container.innerHTML += `
+        <div class="channel-item ${activeClass}" onclick="switchChannel('${ch}')">
+          <span class="channel-prefix">#</span>
+          <span>${ch}</span>
         </div>
-        <button onclick="loadCurrentChannel()" class="refresh-btn">🔄 Refresh</button>
-      </div>
+      `;
+    });
+  }
 
-      <div id="messages-container" class="messages-container"></div>
+  async function switchChannel(channelName) {
+    currentChannel = channelName.replace(/^r\//, '').replace(/^#/, '').toLowerCase();
+    document.getElementById('channel-title').innerText = currentChannel;
+    document.getElementById('dummy-input').placeholder = `Message #${currentChannel}`;
+    renderChannels();
+    closeThread();
+    loadCurrentChannel();
+  }
 
-      <div class="input-wrapper">
-        <input id="dummy-input" type="text" placeholder="Message #askreddit" class="message-input">
-      </div>
-    </div>
+  async function loadCurrentChannel() {
+    const container = document.getElementById('messages-container');
+    container.innerHTML = `<div style="color: #9CA3AF; text-align: center; padding: 40px; font-size: 12px;">Syncing #${currentChannel}...</div>`;
 
-    <!-- Right Thread Comments Panel -->
-    <div id="thread-sidebar" class="thread-sidebar hidden">
-      <div class="thread-header">
-        <span>Thread Comments</span>
-        <button onclick="closeThread()" class="close-btn">✕</button>
-      </div>
-      <div id="thread-body" class="thread-body"></div>
-    </div>
-  </div>
-
-  <!-- Panic Overlay -->
-  <div id="panic-overlay">
-    <div style="max-width: 800px; margin: 0 auto;">
-      <div style="display: flex; justify-content: space-between; align-align: center; border-bottom: 1px solid #374151; padding-bottom: 16px;">
-        <h2 style="color: white; font-size: 16px;">⚠️ Shopify Support Log #70665123</h2>
-        <button onclick="togglePanic()" style="background: #374151; color: white; border: none; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">Resume Workspace</button>
-      </div>
-      <div style="background: #222529; padding: 16px; margin-top: 16px; border-radius: 6px; font-family: monospace; font-size: 12px; color: #10B981;">
-        [2026-10-15 17:50:12 UTC] STATUS: RESOLVED - Merchant Migration Rates
-      </div>
-    </div>
-  </div>
-
-  <script>
-    let defaultChannels = ['askreddit', 'technology', 'worldnews', 'funny', 'todayilearned', 'python'];
-    let currentChannel = 'askreddit';
-
-    async function fetchRSS(subreddit) {
-      const rssUrl = `https://www.reddit.com/r/${subreddit}/.rss`;
-      const apiUrl = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(rssUrl)}`;
-      const res = await fetch(apiUrl);
-      if (!res.ok) throw new Error("Fetch failed");
-      return await res.json();
-    }
-
-    async function fetchCommentsRSS(link) {
-      const rssUrl = `${link.replace(/\/$/, '')}/.rss`;
-      const apiUrl = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(rssUrl)}`;
-      const res = await fetch(apiUrl);
-      if (!res.ok) throw new Error("Fetch failed");
-      return await res.json();
-    }
-
-    function init() {
-      renderChannels();
-      switchChannel(currentChannel);
-      document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') togglePanic();
-      });
-    }
-
-    function renderChannels() {
-      const container = document.getElementById('channels-container');
+    try {
+      const data = await fetchRSS(currentChannel);
       container.innerHTML = '';
-      defaultChannels.forEach(ch => {
-        const activeClass = ch.toLowerCase() === currentChannel.toLowerCase() ? 'active' : '';
+
+      if (!data.items || data.items.length === 0) {
+        container.innerHTML = `<div style="color: #9CA3AF; padding: 20px; font-size: 12px;">No posts found for #${currentChannel}.</div>`;
+        return;
+      }
+
+      data.items.forEach(p => {
+        const author = p.author || 'reddit_user';
+        const pubDate = new Date(p.pubDate).getTime() / 1000;
+        const cleanTitle = decodeHTML(p.title);
+        
         container.innerHTML += `
-          <div class="channel-item ${activeClass}" onclick="switchChannel('${ch}')">
-            <span class="channel-prefix">#</span>
-            <span>${ch}</span>
+          <div class="msg-card">
+            <img src="https://api.dicebear.com/7.x/identicon/svg?seed=${author}" class="msg-avatar">
+            <div style="flex: 1; min-width: 0;">
+              <div class="msg-header">
+                <span class="msg-author">${escapeHTML(author)}</span>
+                <span class="msg-time">${formatTime(pubDate)}</span>
+              </div>
+              <div class="msg-title">${cleanTitle}</div>
+              <button onclick="openThread('${p.link}')" class="thread-btn">
+                💬 View Comments Thread
+              </button>
+            </div>
           </div>
         `;
       });
+
+    } catch (err) {
+      container.innerHTML = `<div style="color: #EF4444; padding: 20px; font-size: 12px;">Failed to load channel feed. Click Refresh to try again.</div>`;
     }
+  }
 
-    async function switchChannel(channelName) {
-      currentChannel = channelName.replace(/^r\//, '').replace(/^#/, '').toLowerCase();
-      document.getElementById('channel-title').innerText = currentChannel;
-      document.getElementById('dummy-input').placeholder = `Message #${currentChannel}`;
-      renderChannels();
-      closeThread();
-      loadCurrentChannel();
-    }
+  async function openThread(link) {
+    const sidebar = document.getElementById('thread-sidebar');
+    const body = document.getElementById('thread-body');
+    
+    sidebar.classList.remove('hidden');
+    body.innerHTML = `<div style="color: #9CA3AF; text-align: center; padding: 20px; font-size: 12px;">Loading comments...</div>`;
 
-    async function loadCurrentChannel() {
-      const container = document.getElementById('messages-container');
-      container.innerHTML = `<div style="color: #9CA3AF; text-align: center; padding: 40px; font-size: 12px;">Syncing #${currentChannel}...</div>`;
+    try {
+      const data = await fetchCommentsRSS(link);
+      body.innerHTML = '';
 
-      try {
-        const data = await fetchRSS(currentChannel);
-        container.innerHTML = '';
+      // First RSS entry is the main post itself
+      const comments = data.items.slice(1);
 
-        if (!data.items || data.items.length === 0) {
-          container.innerHTML = `<div style="color: #9CA3AF; padding: 20px; font-size: 12px;">No posts found for #${currentChannel}.</div>`;
-          return;
-        }
-
-        data.items.forEach(p => {
-          const author = p.author || 'reddit_user';
-          const pubDate = new Date(p.pubDate).getTime() / 1000;
-          
-          container.innerHTML += `
-            <div class="msg-card">
-              <img src="https://api.dicebear.com/7.x/identicon/svg?seed=${author}" class="msg-avatar">
-              <div style="flex: 1; min-width: 0;">
-                <div class="msg-header">
-                  <span class="msg-author">${escapeHTML(author)}</span>
-                  <span class="msg-time">${formatTime(pubDate)}</span>
-                </div>
-                <div class="msg-title">${escapeHTML(p.title)}</div>
-                <button onclick="openThread('${p.link}')" class="thread-btn">
-                  💬 View Comments Thread
-                </button>
-              </div>
-            </div>
-          `;
-        });
-
-      } catch (err) {
-        container.innerHTML = `<div style="color: #EF4444; padding: 20px; font-size: 12px;">Failed to load channel feed. Click Refresh to try again.</div>`;
+      if (comments.length === 0) {
+        body.innerHTML = `<div style="color: #9CA3AF; padding: 12px; font-size: 12px;">No comments available for this post.</div>`;
+        return;
       }
-    }
 
-    async function openThread(link) {
-      const sidebar = document.getElementById('thread-sidebar');
-      const body = document.getElementById('thread-body');
-      
-      sidebar.classList.remove('hidden');
-      body.innerHTML = `<div style="color: #9CA3AF; text-align: center; padding: 20px; font-size: 12px;">Loading comments...</div>`;
+      comments.forEach(c => {
+        const author = c.author || 'commenter';
+        const pubDate = new Date(c.pubDate).getTime() / 1000;
+        
+        // Strip HTML markup and decode html entities
+        let cleanText = c.content.replace(/<[^>]*>?/gm, '').trim();
+        cleanText = decodeHTML(cleanText);
 
-      try {
-        const data = await fetchCommentsRSS(link);
-        body.innerHTML = '';
-
-        // First RSS entry is the main post itself
-        const comments = data.items.slice(1);
-
-        if (comments.length === 0) {
-          body.innerHTML = `<div style="color: #9CA3AF; padding: 12px; font-size: 12px;">No comments available for this post.</div>`;
-          return;
-        }
-
-        comments.forEach(c => {
-          const author = c.author || 'commenter';
-          const pubDate = new Date(c.pubDate).getTime() / 1000;
-          const cleanText = c.content.replace(/<[^>]*>?/gm, '').trim();
-
-          body.innerHTML += `
-            <div class="comment-card">
-              <img src="https://api.dicebear.com/7.x/identicon/svg?seed=${author}" class="comment-avatar">
-              <div style="flex: 1; min-width: 0;">
-                <div>
-                  <span class="comment-author">${escapeHTML(author)}</span>
-                  <span style="font-size: 10px; color: #6B7280; margin-left: 6px;">${formatTime(pubDate)}</span>
-                </div>
-                <div class="comment-text">${escapeHTML(cleanText.slice(0, 320))}</div>
+        body.innerHTML += `
+          <div class="comment-card">
+            <img src="https://api.dicebear.com/7.x/identicon/svg?seed=${author}" class="comment-avatar">
+            <div style="flex: 1; min-width: 0;">
+              <div>
+                <span class="comment-author">${escapeHTML(author)}</span>
+                <span style="font-size: 10px; color: #6B7280; margin-left: 6px;">${formatTime(pubDate)}</span>
               </div>
+              <div class="comment-text">${cleanText.slice(0, 350)}</div>
             </div>
-          `;
-        });
-      } catch (e) {
-        body.innerHTML = `<div style="color: #EF4444; font-size: 12px;">Failed to load thread comments.</div>`;
-      }
+          </div>
+        `;
+      });
+    } catch (e) {
+      body.innerHTML = `<div style="color: #EF4444; font-size: 12px;">Failed to load thread comments.</div>`;
     }
+  }
 
-    function closeThread() { document.getElementById('thread-sidebar').classList.add('hidden'); }
-    function togglePanic() { document.getElementById('panic-overlay').classList.toggle('active'); }
+  function closeThread() { document.getElementById('thread-sidebar').classList.add('hidden'); }
+  function togglePanic() { document.getElementById('panic-overlay').classList.toggle('active'); }
 
-    function formatTime(utcSeconds) {
-      if (!utcSeconds) return 'just now';
-      const diff = Math.floor((Date.now() / 1000) - utcSeconds);
-      if (diff < 60) return 'just now';
-      if (diff < 3600) return `${Math.floor(diff/60)}m ago`;
-      if (diff < 86400) return `${Math.floor(diff/3600)}h ago`;
-      return `${Math.floor(diff/86400)}d ago`;
-    }
+  function formatTime(utcSeconds) {
+    if (!utcSeconds) return 'just now';
+    const diff = Math.floor((Date.now() / 1000) - utcSeconds);
+    if (diff < 60) return 'just now';
+    if (diff < 3600) return `${Math.floor(diff/60)}m ago`;
+    if (diff < 86400) return `${Math.floor(diff/3600)}h ago`;
+    return `${Math.floor(diff/86400)}d ago`;
+  }
 
-    function escapeHTML(str) {
-      if (!str) return '';
-      return str.replace(/[&<>'"]/g, tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag));
-    }
+  function escapeHTML(str) {
+    if (!str) return '';
+    return str.replace(/[&<>'"]/g, tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag));
+  }
 
-    window.onload = init;
-  </script>
-</body>
-</html>
+  function decodeHTML(html) {
+    const txt = document.createElement('textarea');
+    txt.innerHTML = html;
+    return txt.value;
+  }
+
+  window.onload = init;
+</script>
