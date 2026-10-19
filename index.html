@@ -117,44 +117,27 @@
   </div>
 
   <script>
-    var redditWindow = null;
     var defaultChannels = ['askreddit', 'technology', 'worldnews', 'funny', 'todayilearned', 'python'];
     var currentChannel = 'askreddit';
     var lastAfterToken = '';
 
-    function sendBridgeRequest(targetUrl) {
-      return new Promise((resolve, reject) => {
-        const id = 'req_' + Math.random().toString(36).substr(2, 9);
+    // Direct JSON fetch fallback pipeline (combines direct fetch + raw CORS mirrors)
+    async function fetchRedditJSON(targetUrl) {
+      const mirrors = [
+        `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`,
+        `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`,
+        targetUrl
+      ];
 
-        if (!redditWindow || redditWindow.closed) {
-          redditWindow = window.open('https://old.reddit.com', 'reddit_bridge_tab');
-        }
-
-        const timeout = setTimeout(() => {
-          window.removeEventListener('message', handleResponse);
-          reject(new Error("Bridge Timeout: Make sure old.reddit.com is open in the secondary tab with the Console script running!"));
-        }, 8000);
-
-        function handleResponse(event) {
-          if (event.data && event.data.id === id) {
-            clearTimeout(timeout);
-            window.removeEventListener('message', handleResponse);
-            if (event.data.status === 'SUCCESS') {
-              resolve(event.data.data);
-            } else {
-              reject(new Error(event.data.error || 'Bridge request failed'));
-            }
-          }
-        }
-
-        window.addEventListener('message', handleResponse);
-
-        if (redditWindow) {
-          redditWindow.postMessage({ id, type: 'FETCH_REDDIT', targetUrl }, 'https://old.reddit.com');
-        } else {
-          reject(new Error("Could not connect to old.reddit.com window."));
-        }
-      });
+      for (let url of mirrors) {
+        try {
+          const res = await fetch(url);
+          if (!res.ok) continue;
+          const data = await res.json();
+          if (data) return data;
+        } catch (e) {}
+      }
+      throw new Error("Unable to sync feed. Please try refreshing or changing channels.");
     }
 
     function getAvatar(username) {
@@ -188,7 +171,7 @@
 
     async function loadCurrentChannel() {
       var container = document.getElementById('messages-container');
-      container.innerHTML = `<div style="color: #9CA3AF; text-align: center; padding: 40px; font-size: 12px;">Syncing #${currentChannel} via background tab...</div>`;
+      container.innerHTML = `<div style="color: #9CA3AF; text-align: center; padding: 40px; font-size: 12px;">Syncing #${currentChannel}...</div>`;
       lastAfterToken = '';
       await fetchMorePosts(true);
     }
@@ -208,7 +191,7 @@
         let targetUrl = `https://www.reddit.com/r/${currentChannel}/${sortPath}&limit=50`;
         if (lastAfterToken) targetUrl += `&after=${lastAfterToken}`;
 
-        const json = await sendBridgeRequest(targetUrl);
+        const json = await fetchRedditJSON(targetUrl);
         if (existingBtn) existingBtn.remove();
         if (isInitial) container.innerHTML = '';
 
@@ -258,11 +241,11 @@
       var body = document.getElementById('thread-body');
       
       sidebar.classList.remove('hidden');
-      body.innerHTML = `<div style="color: #9CA3AF; text-align: center; padding: 20px; font-size: 12px;">Loading discussion tree via bridge...</div>`;
+      body.innerHTML = `<div style="color: #9CA3AF; text-align: center; padding: 20px; font-size: 12px;">Loading discussion tree...</div>`;
 
       try {
         const targetUrl = `https://www.reddit.com/r/${currentChannel}/comments/${postId}.json?limit=200&depth=6`;
-        const json = await sendBridgeRequest(targetUrl);
+        const json = await fetchRedditJSON(targetUrl);
         body.innerHTML = '';
 
         const comments = json[1].data.children || [];
