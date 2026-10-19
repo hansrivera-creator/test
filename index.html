@@ -126,7 +126,7 @@
       return new Promise((resolve, reject) => {
         const id = 'req_' + Math.random().toString(36).substr(2, 9);
         const timeout = setTimeout(() => {
-          reject(new Error("Bridge Timeout: Make sure Reddit is open in a background tab with the Engine running!"));
+          reject(new Error("Bridge Timeout: Make sure old.reddit.com is open in a background tab with the Console script running!"));
         }, 8000);
 
         function handleMessage(event) {
@@ -271,28 +271,56 @@
       }
     }
 
-That approach bypasses the CORS restrictions by using a **Bookmarklet** or a **UserScript** (via Tampermonkey or Violentmonkey). 
+    function renderCommentNode(node, depth) {
+      if (node.kind !== 't1') return '';
+      const c = node.data;
+      if (!c.body) return '';
 
-When you run code directly on `old.reddit.com`, the browser grants it full access to Reddit's authentication cookies, live web sockets, and internal APIs without triggering CORS blocks or proxy 403 errors.
+      const author = c.author || 'commenter';
+      const pubDate = c.created_utc;
+      const score = c.score || 0;
+      const bodyText = escapeHTML(c.body);
+      const marginIndent = Math.min(depth * 12, 60);
 
-### Option 1: The Bookmarklet Method (Easiest)
-You keep a tab open to `old.reddit.com` minimized in the background, but convert your active tab into the Slack interface using a snippet stored in your browser bookmarks.
+      let html = `
+        <div class="comment-card ${depth > 0 ? 'has-depth' : ''}" style="margin-left: ${marginIndent}px;">
+          <img src="${getAvatar(author)}" class="comment-avatar">
+          <div style="flex: 1; min-width: 0;">
+            <div>
+              <span class="comment-author">${escapeHTML(author)}</span>
+              <span class="comment-score">▲ ${score}</span>
+              <span style="font-size: 10px; color: #6B7280; margin-left: 6px;">${formatTime(pubDate)}</span>
+            </div>
+            <div class="comment-text">${bodyText}</div>
+          </div>
+        </div>
+      `;
 
-1. Create a new bookmark in your browser bar.
-2. Set the Name to **Slackify**.
-3. Set the URL/Location to the following JavaScript wrapper:
+      if (c.replies && c.replies.data && c.replies.data.children) {
+        c.replies.data.children.forEach(reply => {
+          html += renderCommentNode(reply, depth + 1);
+        });
+      }
 
-```javascript
-javascript:(function(){
-  if(!window.location.hostname.includes('reddit.com')){
-    alert('Please open old.reddit.com first!');
-    return;
-  }
-  fetch('[https://your-hosted-slackify-code.html](https://your-hosted-slackify-code.html)')
-    .then(r => r.text())
-    .then(html => {
-      document.open();
-      document.write(html);
-      document.close();
-    });
-})();
+      return html;
+    }
+
+    function closeThread() { document.getElementById('thread-sidebar').classList.add('hidden'); }
+    function togglePanic() { document.getElementById('panic-overlay').classList.toggle('active'); }
+
+    function formatTime(utcSeconds) {
+      if (!utcSeconds) return 'just now';
+      var diff = Math.floor((Date.now() / 1000) - utcSeconds);
+      if (diff < 3600) return Math.floor(diff/60) + 'm ago';
+      if (diff < 86400) return Math.floor(diff/3600) + 'h ago';
+      return Math.floor(diff/86400) + 'd ago';
+    }
+
+    function escapeHTML(str) {
+      return (str || '').replace(/[&<>'"]/g, tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&#34;' }[tag] || tag));
+    }
+
+    window.onload = init;
+  </script>
+</body>
+</html>
