@@ -38,7 +38,6 @@
     
     .thread-btn { margin-top: 6px; background: none; border: none; color: #60A5FA; font-size: 11px; font-weight: 500; cursor: pointer; }
     .load-more-feed-btn { width: 100%; background: #222529; border: 1px solid #374151; color: #60A5FA; padding: 10px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; margin: 12px 0; text-align: center; }
-    .load-more-feed-btn:hover { background: #2D3748; color: white; }
 
     .input-wrapper { padding: 12px 20px; border-top: 1px solid #2D3748; background: #1A1D21; flex-shrink: 0; }
     .message-input { width: 100%; background: #222529; border: 1px solid #374151; border-radius: 6px; padding: 8px 12px; color: white; font-size: 12px; outline: none; }
@@ -48,7 +47,6 @@
     .thread-header { height: 44px; border-bottom: 1px solid #2D3748; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; color: white; font-weight: 700; font-size: 13px; flex-shrink: 0; }
     .thread-body { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 8px; }
     
-    /* Deep Nested Tree Formatting */
     .comment-card { display: flex; gap: 8px; font-size: 12px; padding: 4px 0; border-left: 2px solid transparent; }
     .comment-card.has-depth { border-left-color: #374151; padding-left: 8px; margin-left: 4px; }
     .comment-avatar { width: 22px; height: 22px; border-radius: 4px; background: #2D3748; flex-shrink: 0; }
@@ -119,30 +117,37 @@
   </div>
 
   <script>
+    const bridge = new BroadcastChannel('slackify_bridge');
     var defaultChannels = ['askreddit', 'technology', 'worldnews', 'funny', 'todayilearned', 'python'];
     var currentChannel = 'askreddit';
     var lastAfterToken = '';
 
-    function getAvatar(username) {
-      return 'https://api.dicebear.com/7.x/identicon/svg?seed=' + encodeURIComponent(username || 'anon');
+    function sendBridgeRequest(targetUrl) {
+      return new Promise((resolve, reject) => {
+        const id = 'req_' + Math.random().toString(36).substr(2, 9);
+        const timeout = setTimeout(() => {
+          reject(new Error("Bridge Timeout: Make sure Reddit is open in a background tab with the Engine running!"));
+        }, 8000);
+
+        function handleMessage(event) {
+          if (event.data && event.data.id === id) {
+            clearTimeout(timeout);
+            bridge.removeEventListener('message', handleMessage);
+            if (event.data.status === 'SUCCESS') {
+              resolve(event.data.data);
+            } else {
+              reject(new Error(event.data.error || 'Bridge request failed'));
+            }
+          }
+        }
+
+        bridge.addEventListener('message', handleMessage);
+        bridge.postMessage({ id, type: 'FETCH_REDDIT', targetUrl });
+      });
     }
 
-    async function fetchRedditJSON(targetUrl) {
-      const endpoints = [
-        `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`,
-        `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`,
-        targetUrl
-      ];
-
-      for (let url of endpoints) {
-        try {
-          const res = await fetch(url);
-          if (!res.ok) continue;
-          const data = await res.json();
-          if (data) return data;
-        } catch (e) {}
-      }
-      throw new Error("JSON Fetch Failed");
+    function getAvatar(username) {
+      return 'https://api.dicebear.com/7.x/identicon/svg?seed=' + encodeURIComponent(username || 'anon');
     }
 
     function init() {
@@ -172,7 +177,7 @@
 
     async function loadCurrentChannel() {
       var container = document.getElementById('messages-container');
-      container.innerHTML = `<div style="color: #9CA3AF; text-align: center; padding: 40px; font-size: 12px;">Syncing #${currentChannel}...</div>`;
+      container.innerHTML = `<div style="color: #9CA3AF; text-align: center; padding: 40px; font-size: 12px;">Syncing #${currentChannel} via background tab...</div>`;
       lastAfterToken = '';
       await fetchMorePosts(true);
     }
@@ -192,7 +197,7 @@
         let targetUrl = `https://www.reddit.com/r/${currentChannel}/${sortPath}&limit=50`;
         if (lastAfterToken) targetUrl += `&after=${lastAfterToken}`;
 
-        const json = await fetchRedditJSON(targetUrl);
+        const json = await sendBridgeRequest(targetUrl);
         if (existingBtn) existingBtn.remove();
         if (isInitial) container.innerHTML = '';
 
@@ -229,7 +234,7 @@
         
       } catch (err) {
         if (isInitial) {
-          container.innerHTML = `<div style="color: #EF4444; padding: 20px; font-size: 12px;">Failed to load feed. Click Refresh.</div>`;
+          container.innerHTML = `<div style="color: #EF4444; padding: 20px; font-size: 12px;">${err.message}</div>`;
         } else if (existingBtn) {
           existingBtn.innerText = '⚠️ Failed to fetch. Click to retry.';
           existingBtn.disabled = false;
@@ -242,11 +247,11 @@
       var body = document.getElementById('thread-body');
       
       sidebar.classList.remove('hidden');
-      body.innerHTML = `<div style="color: #9CA3AF; text-align: center; padding: 20px; font-size: 12px;">Loading full discussion tree...</div>`;
+      body.innerHTML = `<div style="color: #9CA3AF; text-align: center; padding: 20px; font-size: 12px;">Loading discussion tree via bridge...</div>`;
 
       try {
         const targetUrl = `https://www.reddit.com/r/${currentChannel}/comments/${postId}.json?limit=200&depth=6`;
-        const json = await fetchRedditJSON(targetUrl);
+        const json = await sendBridgeRequest(targetUrl);
         body.innerHTML = '';
 
         const comments = json[1].data.children || [];
@@ -262,60 +267,32 @@
         body.innerHTML = htmlBuffer;
 
       } catch (e) {
-        body.innerHTML = `<div style="color: #EF4444; font-size: 12px;">Failed to load thread. Click again to retry.</div>`;
+        body.innerHTML = `<div style="color: #EF4444; font-size: 12px;">${e.message}</div>`;
       }
     }
 
-    function renderCommentNode(node, depth) {
-      if (node.kind !== 't1') return '';
-      const c = node.data;
-      if (!c.body) return '';
+That approach bypasses the CORS restrictions by using a **Bookmarklet** or a **UserScript** (via Tampermonkey or Violentmonkey). 
 
-      const author = c.author || 'commenter';
-      const pubDate = c.created_utc;
-      const score = c.score || 0;
-      const bodyText = escapeHTML(c.body);
-      const marginIndent = Math.min(depth * 12, 60);
+When you run code directly on `old.reddit.com`, the browser grants it full access to Reddit's authentication cookies, live web sockets, and internal APIs without triggering CORS blocks or proxy 403 errors.
 
-      let html = `
-        <div class="comment-card ${depth > 0 ? 'has-depth' : ''}" style="margin-left: ${marginIndent}px;">
-          <img src="${getAvatar(author)}" class="comment-avatar">
-          <div style="flex: 1; min-width: 0;">
-            <div>
-              <span class="comment-author">${escapeHTML(author)}</span>
-              <span class="comment-score">▲ ${score}</span>
-              <span style="font-size: 10px; color: #6B7280; margin-left: 6px;">${formatTime(pubDate)}</span>
-            </div>
-            <div class="comment-text">${bodyText}</div>
-          </div>
-        </div>
-      `;
+### Option 1: The Bookmarklet Method (Easiest)
+You keep a tab open to `old.reddit.com` minimized in the background, but convert your active tab into the Slack interface using a snippet stored in your browser bookmarks.
 
-      if (c.replies && c.replies.data && c.replies.data.children) {
-        c.replies.data.children.forEach(reply => {
-          html += renderCommentNode(reply, depth + 1);
-        });
-      }
+1. Create a new bookmark in your browser bar.
+2. Set the Name to **Slackify**.
+3. Set the URL/Location to the following JavaScript wrapper:
 
-      return html;
-    }
-
-    function closeThread() { document.getElementById('thread-sidebar').classList.add('hidden'); }
-    function togglePanic() { document.getElementById('panic-overlay').classList.toggle('active'); }
-
-    function formatTime(utcSeconds) {
-      if (!utcSeconds) return 'just now';
-      var diff = Math.floor((Date.now() / 1000) - utcSeconds);
-      if (diff < 3600) return Math.floor(diff/60) + 'm ago';
-      if (diff < 86400) return Math.floor(diff/3600) + 'h ago';
-      return Math.floor(diff/86400) + 'd ago';
-    }
-
-    function escapeHTML(str) {
-      return (str || '').replace(/[&<>'"]/g, tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag));
-    }
-
-    window.onload = init;
-  </script>
-</body>
-</html>
+```javascript
+javascript:(function(){
+  if(!window.location.hostname.includes('reddit.com')){
+    alert('Please open old.reddit.com first!');
+    return;
+  }
+  fetch('[https://your-hosted-slackify-code.html](https://your-hosted-slackify-code.html)')
+    .then(r => r.text())
+    .then(html => {
+      document.open();
+      document.write(html);
+      document.close();
+    });
+})();
